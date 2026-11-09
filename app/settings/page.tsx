@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DeveloperSection } from '@/components/DeveloperSettings';
 import { BadgeSection, EmojiManager } from '@/components/EmojiSettings';
 import { PageHeader } from '@/components/PageHeader';
 import { useViewer } from '@/hooks/use-queries';
@@ -103,6 +104,8 @@ export default function SettingsPage() {
             <Button type="submit" disabled={!current || next.length < 8 || changePw.isPending} className="rounded-full font-bold px-5">変更する</Button>
           </form>
         </section>
+
+        <DeveloperSection />
 
         <section className="p-4 space-y-3">
           <h2 className="font-bold">アカウント</h2>

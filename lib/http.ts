@@ -1,6 +1,7 @@
 import 'server-only';
 import { NextRequest } from 'next/server';
-import { getViewer, type Viewer } from './auth';
+import { getBotViewer, getViewer, type Viewer } from './auth';
+import { rateLimit } from './ratelimit';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -39,15 +40,30 @@ function sameOrigin(req: NextRequest) {
   return candidates.includes(originHost);
 }
 
-function wrap<V>(needAuth: boolean, fn: (c: Ctx<V>) => Promise<unknown>) {
+/** ボットが 1 分間に呼べる API 回数 */
+const BOT_RATE_PER_MIN = 120;
+
+function wrap<V>(needAuth: boolean, fn: (c: Ctx<V>) => Promise<unknown>, { humanOnly = false }: { humanOnly?: boolean } = {}) {
   return async (req: NextRequest, routeCtx: RouteCtx): Promise<Response> => {
     try {
-      if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) {
-        throw new HttpError(403, '不正なリクエストです');
+      // Authorization: Bearer nzb_... があればボット API。Cookie は使わないので CSRF の心配がなく、同一オリジン検査も不要。
+      // 付いているのに無効な場合は Cookie にフォールバックせず 401 にする。
+      const authz = req.headers.get('authorization');
+      let viewer: Viewer | null;
+      if (authz) {
+        const token = /^Bearer\s+(\S+)$/i.exec(authz)?.[1];
+        viewer = token ? await getBotViewer(token) : null;
+        if (!viewer) throw new HttpError(401, 'APIトークンが無効です');
+        await rateLimit(`bot:${viewer.idNum}`, BOT_RATE_PER_MIN, 60 * 1000, 'APIの呼び出し回数が上限に達しました。しばらくしてからお試しください');
+      } else {
+        if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) {
+          throw new HttpError(403, '不正なリクエストです');
+        }
+        // cookies() は実行時 API。Cache Components 下でもリクエスト時に必ず実行されるようにする
+        viewer = await getViewer();
       }
-      // cookies() は実行時 API。Cache Components 下でもリクエスト時に必ず実行されるようにする
-      const viewer = await getViewer();
       if (needAuth && !viewer) throw new HttpError(401, 'ログインが必要です');
+      if (humanOnly && viewer?.isBot) throw new HttpError(403, 'この操作はボットでは実行できません');
       const params = (await routeCtx?.params) ?? {};
       const result = await fn({ req, params, viewer: viewer as V });
       if (result instanceof Response) return result;
@@ -66,6 +82,8 @@ function wrap<V>(needAuth: boolean, fn: (c: Ctx<V>) => Promise<unknown>) {
 
 /** ログイン必須のエンドポイント */
 export const authed = (fn: (c: Ctx<Viewer>) => Promise<unknown>) => wrap<Viewer>(true, fn);
+/** ログイン必須 + 人間のアカウント専用（ボットのトークンでは呼べない。パスワード変更・ボット管理など） */
+export const humanOnly = (fn: (c: Ctx<Viewer>) => Promise<unknown>) => wrap<Viewer>(true, fn, { humanOnly: true });
 /** ログイン不要（viewer は null の可能性あり） */
 export const open = (fn: (c: Ctx<Viewer | null>) => Promise<unknown>) => wrap<Viewer | null>(false, fn);
 

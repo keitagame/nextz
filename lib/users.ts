@@ -11,12 +11,14 @@ export interface UserRow {
   badge_id: number | null;
   badge_code: string | null;
   badge_url: string | null;
+  is_bot?: boolean;
 }
 
 /** u（users）に対するユーザー情報の共通列。バッジ（カスタム絵文字）はサブクエリで引く */
 export const USER_COLS = `u.id, u.username, u.display_name, u.avatar, u.verified, u.badge_emoji_id AS badge_id,
   (SELECT e.shortcode FROM custom_emojis e WHERE e.id = u.badge_emoji_id) AS badge_code,
-  (SELECT e.image FROM custom_emojis e WHERE e.id = u.badge_emoji_id) AS badge_url`;
+  (SELECT e.image FROM custom_emojis e WHERE e.id = u.badge_emoji_id) AS badge_url,
+  EXISTS(SELECT 1 FROM bots bt WHERE bt.user_id = u.id) AS is_bot`;
 
 export const toUser = (r: UserRow): User => ({
   id: String(r.id),
@@ -24,6 +26,7 @@ export const toUser = (r: UserRow): User => ({
   name: r.display_name,
   avatarUrl: r.avatar,
   isVerified: !!r.verified,
+  isBot: !!r.is_bot,
   badge: r.badge_id && r.badge_code && r.badge_url ? { id: String(r.badge_id), shortcode: r.badge_code, url: r.badge_url } : null,
 });
 

@@ -213,6 +213,23 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at BIGINT;
 CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen_at);
 `;
 
+/**
+ * ボット（開発者向け API）まわりのスキーマ。既存の DB にも適用できるよう、すべて冪等にしてある。
+ *   bots  ボット = 専用のユーザーアカウント（users 行）+ 所有者 + API トークン（SHA-256 ハッシュのみ保存）
+ */
+const BOT_SCHEMA = `
+CREATE TABLE IF NOT EXISTS bots (
+  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,
+  token_prefix TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  last_used_at BIGINT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_bots_token ON bots(token_hash);
+CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(owner_id);
+`;
+
 export type Args = unknown[] | Record<string, unknown>;
 
 /**
@@ -298,12 +315,12 @@ async function init(): Promise<Pool> {
   }
 
   // スキーマ作成は初回のみ。複数インスタンスが同時に起動しても競合しないよう advisory lock をかける。
-  // 基本スキーマ（rate_limits を目印）・カスタム絵文字（post_reactions を目印）・チャンネル（channel_posts を目印）を別々に判定する。
+  // 基本スキーマ（rate_limits を目印）・カスタム絵文字（post_reactions を目印）・チャンネル（channel_posts を目印）・ボット（bots を目印）を別々に判定する。
   // こうすると、すでに運用中の DB にも絵文字用のテーブル・列が自動で追加される。
   const { rows } = await pool.query(
-    "SELECT to_regclass('public.rate_limits') IS NOT NULL AS base, to_regclass('public.post_reactions') IS NOT NULL AS emoji, to_regclass('public.channel_posts') IS NOT NULL AS channel",
+    "SELECT to_regclass('public.rate_limits') IS NOT NULL AS base, to_regclass('public.post_reactions') IS NOT NULL AS emoji, to_regclass('public.channel_posts') IS NOT NULL AS channel, to_regclass('public.bots') IS NOT NULL AS bot",
   );
-  if (!rows[0].base || !rows[0].emoji || !rows[0].channel) {
+  if (!rows[0].base || !rows[0].emoji || !rows[0].channel || !rows[0].bot) {
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
@@ -311,6 +328,7 @@ async function init(): Promise<Pool> {
       if (!rows[0].base) await c.query(SCHEMA);
       await c.query(EMOJI_SCHEMA);
       await c.query(CHANNEL_SCHEMA);
+      await c.query(BOT_SCHEMA);
       await c.query('COMMIT');
     } catch (e) {
       await c.query('ROLLBACK').catch(() => {});

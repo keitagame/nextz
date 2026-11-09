@@ -63,6 +63,28 @@ export async function getViewer(): Promise<Viewer | null> {
   return { ...toUser(row), idNum: row.id };
 }
 
+/** ボット API トークン。`nzb_` + 256bit のランダム値。DB には SHA-256 ハッシュしか保存しない */
+export const BOT_TOKEN_PREFIX = 'nzb_';
+
+export function generateBotToken() {
+  const token = BOT_TOKEN_PREFIX + crypto.randomBytes(32).toString('base64url');
+  return { token, hash: sha256(token), prefix: token.slice(0, 8) };
+}
+
+/** Bearer トークンからボットを特定する。無効なら null */
+export async function getBotViewer(token: string): Promise<Viewer | null> {
+  if (!token.startsWith(BOT_TOKEN_PREFIX) || token.length > 100) return null;
+  const now = Date.now();
+  const row = await db.get<UserRow>(
+    `SELECT ${USER_COLS} FROM bots b JOIN users u ON u.id = b.user_id WHERE b.token_hash = ?`,
+    [sha256(token)],
+  );
+  if (!row) return null;
+  // 最終使用日時は 1 分に 1 回だけ更新する
+  await db.run('UPDATE bots SET last_used_at = ? WHERE user_id = ? AND (last_used_at IS NULL OR last_used_at < ?)', [now, row.id, now - 60_000]);
+  return { ...toUser(row), idNum: row.id };
+}
+
 export function isSecureRequest(req: Request): boolean {
   return new URL(req.url).protocol === 'https:' || req.headers.get('x-forwarded-proto') === 'https';
 }

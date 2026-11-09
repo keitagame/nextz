@@ -1,9 +1,9 @@
-import { authed, readJson, str, HttpError } from '@/lib/http';
+import { humanOnly, readJson, str, HttpError } from '@/lib/http';
 import { db } from '@/lib/db';
 import { hashPassword, verifyPassword } from '@/lib/auth';
 import { rateLimit } from '@/lib/ratelimit';
 
-export const POST = authed(async ({ req, viewer }) => {
+export const POST = humanOnly(async ({ req, viewer }) => {
   await rateLimit(`pw:${viewer.idNum}`, 5, 15 * 60 * 1000);
   const body = await readJson(req);
   const current = str(body.current, '現在のパスワード', { min: 1, max: 128, trim: false });

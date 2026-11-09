@@ -37,7 +37,6 @@ export default function HomePage() {
   });
 
   const features: Feature[] = [
-    { icon: Newspaper, label: 'タイムライン', description: 'みんなのポストを見る', href: '/timeline' },
     { icon: Hash, label: 'チャンネル', description: '好きを語るコミュニティ', href: '/channels' },
     { icon: Compass, label: '話題を探す', description: 'トレンドとおすすめ', href: '/explore' },
     { icon: Bell, label: '通知', description: 'いいね・返信など', href: '/notifications', badge: counters?.notifications },
@@ -45,6 +44,7 @@ export default function HomePage() {
     { icon: Bookmark, label: 'ブックマーク', description: '保存したポスト', href: '/bookmarks' },
     { icon: User, label: 'プロフィール', description: '自分のページ', href: `/${me.username}` },
     { icon: Settings, label: '設定', description: 'アカウント・絵文字', href: '/settings' },
+    { icon: Newspaper, label: '閲覧注意', description: '汚い可能性', href: '/timeline' },
   ];
 
   return (

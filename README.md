@@ -17,6 +17,7 @@ DB は Postgres（Neon）、画像は Vercel Blob（ローカル開発時はデ�
 - **通知**: いいね・リポスト・引用・返信・メンション・フォロー、未読バッジ、既読化
 - **DM**: 1対1メッセージ、未読表示、4秒ポーリング、日本語IME対応
 - **検索・トレンド**: キーワード / `#ハッシュタグ` / ユーザー検索、7日間のトレンド
+- **開発者**: ボットアカウントの作成と API トークン管理（設定 → 開発者。詳細は下記）
 - **その他**: `#タグ` `@メンション` URL の自動リンク、ダークモード、レスポンシブ（モバイル下部ナビ）
 
 ## カスタム絵文字
@@ -53,6 +54,41 @@ API: `GET/POST /api/channels`、`GET/DELETE /api/channels/:id`、`GET/POST/DELET
 `DELETE /api/channels/:id/members/:userId`（キック）、`DELETE /api/channels/:id/bans/:userId`（キック解除）、
 `GET/POST /api/channels/:id/posts`、`DELETE /api/channels/:id/posts/:postId`、`GET /api/users/active`。
 テーブル（`channels` / `channel_members` / `channel_bans` / `channel_posts` と `users.last_seen_at` 列）は、既存の DB にも初回アクセス時に自動で追加されます。
+
+## 開発者（ボット API）
+
+**設定 → 開発者** から、ボット用のアカウントと API トークンを作成できます（1人5個まで）。
+
+- ボットは名前の横に **BOT** バッジが付く専用アカウントです。パスワードは無く、API トークンでのみ操作できます。
+- トークン（`nzb_…`）は**作成・再発行したときの一度しか表示されません**。DB には SHA-256 ハッシュしか保存しません。
+- 再発行すると古いトークンはすぐ無効になります。ボットを削除すると、そのボットの投稿・フォロー・DM なども一緒に消えます。
+- 既存の API がそのままボットから使えます。リクエストに `Authorization: Bearer <トークン>` を付けるだけです（Cookie 不要）。
+- トークンが付いているのに無効な場合は 401 になります（Cookie にはフォールバックしません）。
+- 1 ボットあたり 1 分間に 120 リクエストまで（超えると 429）。
+- パスワード変更・ボットの作成/削除/トークン再発行など、アカウント自体に関わる API はボットからは呼べません（403）。
+
+```bash
+curl -X POST https://your-site.example/api/posts \
+  -H "Authorization: Bearer nzb_xxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Hello from my bot!"}'
+```
+
+| メソッド | パス | 内容 |
+| --- | --- | --- |
+| GET / PATCH | `/api/me` | ボット自身の情報 / プロフィール更新 |
+| GET / POST | `/api/posts` | タイムライン取得 / 投稿（`content`, `images`, `parentId`, `quoteOf`） |
+| DELETE | `/api/posts/:id` | ポスト削除 |
+| POST / DELETE | `/api/posts/:id/(like\|repost\|bookmark)` | いいね・リポスト・ブックマーク |
+| PUT / DELETE | `/api/posts/:id/reactions/:emojiId` | 絵文字リアクション |
+| GET | `/api/notifications` | 通知（メンション・返信など。ボットを動かすときのポーリング用） |
+| POST / DELETE | `/api/users/:username/follow` | フォロー / 解除 |
+| POST | `/api/dm`、`/api/dm/:id` | DM スレッド取得・作成 / メッセージ送信 |
+| POST | `/api/channels/:id/posts` | チャンネルへ投稿（メンバーのみ） |
+| POST | `/api/upload` | 画像アップロード（multipart の `file`）→ `url` |
+
+ボット管理 API（人間のアカウントのみ）: `GET/POST /api/bots`、`PATCH/DELETE /api/bots/:id`、`POST /api/bots/:id/token`（再発行）。
+テーブル `bots` は、既存の DB にも初回アクセス時に自動で追加されます。
 
 ## 起動（ローカル）
 

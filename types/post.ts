@@ -26,6 +26,8 @@ export interface User {
   name: string;
   avatarUrl: string | null;
   isVerified?: boolean;
+  /** ボットアカウントか */
+  isBot?: boolean;
   /** プロフィール名の横に表示するカスタム絵文字バッジ */
   badge?: EmojiRef | null;
 }
@@ -161,4 +163,16 @@ export interface ChannelMember {
 /** ホームの「アクティブユーザー」 */
 export interface ActiveUser extends User {
   lastSeenAt: string;
+}
+
+/** 開発者設定：自分が作成したボット */
+export interface Bot {
+  id: string;
+  username: string;
+  name: string;
+  avatarUrl: string | null;
+  /** トークンの先頭数文字（識別用。全文は作成・再発行時の一度しか表示されない） */
+  tokenPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
 }
