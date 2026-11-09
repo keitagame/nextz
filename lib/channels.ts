@@ -3,9 +3,11 @@ import { db, transaction } from './db';
 import { HttpError } from './http';
 import { toUser, USER_COLS, type UserRow } from './users';
 import { MAX_CHANNELS_PER_USER } from './text';
-import type { Channel, ChannelMember, ChannelPost, Page } from '@/types/post';
+import type { Channel, ChannelMember, Page } from '@/types/post';
 
 export const CHANNEL_PAGE_SIZE = 20;
+
+/** チャンネル内の投稿・返信・リアクションなどは posts テーブル（channel_id 付き）に入る。タイムラインは lib/posts.ts の channelFeedPage */
 
 interface ChannelRow extends UserRow {
   cid: number;
@@ -25,8 +27,8 @@ interface ChannelRow extends UserRow {
 const CHANNEL_SELECT = `
   SELECT c.id AS cid, c.name, c.description, c.icon, c.owner_id, c.created_at, ${USER_COLS},
     (SELECT COUNT(*) FROM channel_members m WHERE m.channel_id = c.id) AS members,
-    (SELECT COUNT(*) FROM channel_posts p WHERE p.channel_id = c.id) AS posts,
-    (SELECT MAX(p.created_at) FROM channel_posts p WHERE p.channel_id = c.id) AS last_post_at,
+    (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id AND p.deleted_at IS NULL AND p.repost_of IS NULL) AS posts,
+    (SELECT MAX(p.created_at) FROM posts p WHERE p.channel_id = c.id AND p.deleted_at IS NULL AND p.repost_of IS NULL) AS last_post_at,
     EXISTS(SELECT 1 FROM channel_members m WHERE m.channel_id = c.id AND m.user_id = @viewer) AS is_member,
     EXISTS(SELECT 1 FROM channel_bans b WHERE b.channel_id = c.id AND b.user_id = @viewer) AS is_banned
   FROM channels c JOIN users u ON u.id = c.owner_id`;
@@ -79,7 +81,7 @@ export async function listChannels(opts: {
   }
   const rows = await db.all<ChannelRow>(
     `${CHANNEL_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-     ORDER BY COALESCE((SELECT MAX(p.created_at) FROM channel_posts p WHERE p.channel_id = c.id), c.created_at) DESC, c.id DESC
+     ORDER BY COALESCE((SELECT MAX(p.created_at) FROM posts p WHERE p.channel_id = c.id AND p.deleted_at IS NULL AND p.repost_of IS NULL), c.created_at) DESC, c.id DESC
      LIMIT @lim OFFSET @off`,
     args as never,
   );
@@ -164,59 +166,4 @@ export async function listMembers(channel: Channel): Promise<{ members: ChannelM
     : [];
   const map = (r: UserRow & { at: number }): ChannelMember => ({ user: toUser(r), isOwner: r.id === owner, joinedAt: new Date(r.at).toISOString() });
   return { members: members.map(map), banned: banned.map(map) };
-}
-
-interface PostRow extends UserRow {
-  pid: number;
-  content: string;
-  images: string;
-  created_at: number;
-}
-
-export async function channelPostsPage(channel: Channel, viewerId: number, cursor: number): Promise<Page<ChannelPost>> {
-  const rows = await db.all<PostRow>(
-    `SELECT p.id AS pid, p.content, p.images, p.created_at, ${USER_COLS}
-     FROM channel_posts p JOIN users u ON u.id = p.user_id
-     WHERE p.channel_id = @ch AND p.id < @cursor ORDER BY p.id DESC LIMIT @lim`,
-    { ch: Number(channel.id), cursor, lim: CHANNEL_PAGE_SIZE + 1 },
-  );
-  const owner = Number(channel.owner.id);
-  const hasMore = rows.length > CHANNEL_PAGE_SIZE;
-  const slice = rows.slice(0, CHANNEL_PAGE_SIZE);
-  return {
-    items: slice.map((r) => toChannelPost(r, viewerId, owner)),
-    nextCursor: hasMore ? String(slice[slice.length - 1].pid) : null,
-  };
-}
-
-const toChannelPost = (r: PostRow, viewerId: number, ownerId: number): ChannelPost => ({
-  id: String(r.pid),
-  author: toUser(r),
-  content: r.content,
-  images: JSON.parse(r.images) as string[],
-  createdAt: new Date(r.created_at).toISOString(),
-  canDelete: r.id === viewerId || ownerId === viewerId,
-  byOwner: r.id === ownerId,
-});
-
-export async function createChannelPost(input: { channel: Channel; userId: number; content: string; images: string[] }): Promise<ChannelPost> {
-  if (!input.channel.isMember) throw new HttpError(403, '投稿するにはチャンネルに参加してください');
-  const { lastId } = await db.run(
-    'INSERT INTO channel_posts (channel_id, user_id, content, images, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id',
-    [Number(input.channel.id), input.userId, input.content, JSON.stringify(input.images), Date.now()],
-  );
-  const r = await db.get<PostRow>(
-    `SELECT p.id AS pid, p.content, p.images, p.created_at, ${USER_COLS} FROM channel_posts p JOIN users u ON u.id = p.user_id WHERE p.id = ?`,
-    [lastId],
-  );
-  return toChannelPost(r!, input.userId, Number(input.channel.owner.id));
-}
-
-/** 投稿者本人、またはチャンネルの管理者が削除できる */
-export async function deleteChannelPost(channelId: number, postId: number, viewerId: number) {
-  const c = await requireChannel(channelId, viewerId);
-  const row = await db.get<{ user_id: number }>('SELECT user_id FROM channel_posts WHERE id = ? AND channel_id = ?', [postId, channelId]);
-  if (!row) throw new HttpError(404, '投稿が見つかりません');
-  if (row.user_id !== viewerId && !c.isOwner) throw new HttpError(403, '削除する権限がありません');
-  await db.run('DELETE FROM channel_posts WHERE id = ?', [postId]);
 }

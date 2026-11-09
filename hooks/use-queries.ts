@@ -63,11 +63,11 @@ export function useInfiniteList<T>(key: unknown[], url: string, opts: { enabled?
   });
 }
 
-/** 投稿・削除などコンテンツが変わったときに、タイムライン系キャッシュをまとめて更新する */
+/** 投稿・削除などコンテンツが変わったときに、タイムライン系キャッシュ（チャンネルのタイムライン・投稿数も含む）をまとめて更新する */
 export function useRefreshContent() {
   const qc = useQueryClient();
   return () =>
     qc.invalidateQueries({
-      predicate: (q) => !['me', 'counters', 'dm-threads', 'dm', 'emojis', 'active-users', 'channels', 'channel', 'channel-posts', 'channel-members'].includes(String(q.queryKey[0])),
+      predicate: (q) => !['me', 'counters', 'dm-threads', 'dm', 'emojis', 'active-users', 'channel-members'].includes(String(q.queryKey[0])),
     });
 }

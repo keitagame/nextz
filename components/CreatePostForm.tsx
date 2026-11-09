@@ -10,7 +10,7 @@ import { RichText } from '@/components/RichText';
 import { api, errorMessage, uploadImage } from '@/lib/api';
 import { useRefreshContent, useViewer } from '@/hooks/use-queries';
 import { toast, toastError } from '@/lib/toast';
-import { countChars, MAX_IMAGES, MAX_POST_LENGTH } from '@/lib/text';
+import { countChars, MAX_CHANNEL_POST_LENGTH, MAX_IMAGES, MAX_POST_LENGTH } from '@/lib/text';
 import { cn } from '@/lib/utils';
 import type { Post } from '@/types/post';
 
@@ -19,6 +19,8 @@ const EMOJIS = ['😀', '😂', '🥹', '😍', '🥰', '😎', '🤔', '😭', 
 interface Props {
   parent?: Post | null;
   quote?: Post | null;
+  /** チャンネルに投稿するときのチャンネル ID（返信・引用は元のポストのチャンネルが自動で使われる） */
+  channelId?: string | null;
   placeholder?: string;
   autoFocus?: boolean;
   submitLabel?: string;
@@ -26,7 +28,7 @@ interface Props {
   onPosted?: (post: Post) => void;
 }
 
-export function CreatePostForm({ parent, quote, placeholder, autoFocus, submitLabel, bordered = true, onPosted }: Props) {
+export function CreatePostForm({ parent, quote, channelId: channelIdProp, placeholder, autoFocus, submitLabel, bordered = true, onPosted }: Props) {
   const me = useViewer();
   const refresh = useRefreshContent();
   const [content, setContent] = useState('');
@@ -36,16 +38,20 @@ export function CreatePostForm({ parent, quote, placeholder, autoFocus, submitLa
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // チャンネル内（投稿・返信・引用）は 500 文字、グローバルは 280 文字まで
+  const channelId = parent ? (parent.channel?.id ?? null) : (channelIdProp ?? quote?.channel?.id ?? null);
+  const max = channelId ? MAX_CHANNEL_POST_LENGTH : MAX_POST_LENGTH;
+
   const len = countChars(content);
-  const over = len > MAX_POST_LENGTH;
-  const progress = Math.min((len / MAX_POST_LENGTH) * 100, 100);
+  const over = len > max;
+  const progress = Math.min((len / max) * 100, 100);
   const canSubmit = (content.trim().length > 0 || images.length > 0) && !over && uploading === 0;
 
   const post = useMutation({
     mutationFn: () =>
       api<{ post: Post }>('/api/posts', {
         method: 'POST',
-        json: { content, images, parentId: parent?.id, quoteOf: quote?.id },
+        json: { content, images, parentId: parent?.id, quoteOf: quote?.id, channelId },
       }),
     onSuccess: ({ post }) => {
       setContent('');
@@ -123,7 +129,7 @@ export function CreatePostForm({ parent, quote, placeholder, autoFocus, submitLa
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && canSubmit && !post.isPending) post.mutate();
             }}
-            placeholder={placeholder ?? (parent ? '返信をポスト' : 'いまどうしてる？')}
+            placeholder={placeholder ?? (parent ? '返信をポスト' : channelId ? 'このチャンネルで語ろう' : 'いまどうしてる？')}
             rows={2}
             aria-label="ポストの内容"
             className="w-full bg-transparent border-none resize-none focus:outline-none text-base sm:text-lg placeholder:text-muted-foreground/70 field-sizing-content min-h-16 max-h-[50vh]"
@@ -215,8 +221,8 @@ export function CreatePostForm({ parent, quote, placeholder, autoFocus, submitLa
             <div className="flex items-center gap-3">
               {len > 0 && (
                 <div className="flex items-center gap-2">
-                  {len > MAX_POST_LENGTH - 20 && (
-                    <span className={cn('text-xs', over ? 'text-destructive font-bold' : 'text-muted-foreground')}>{MAX_POST_LENGTH - len}</span>
+                  {len > max - 20 && (
+                    <span className={cn('text-xs', over ? 'text-destructive font-bold' : 'text-muted-foreground')}>{max - len}</span>
                   )}
                   <div className="w-5 h-5 relative flex items-center justify-center">
                     <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36" aria-hidden>

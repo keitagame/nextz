@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { Hash } from 'lucide-react';
 import { CreatePostForm } from '@/components/CreatePostForm';
 import { ImageGrid } from '@/components/ImageGrid';
 import { InfiniteList } from '@/components/InfiniteList';
@@ -65,9 +66,17 @@ function Detail({ post, ancestors }: { post: Post; ancestors: Post[] }) {
               <p className="text-sm text-muted-foreground truncate">@{p.author.username}</p>
             </div>
           </Link>
-          <PostMenu post={p} onDeleted={() => router.push('/timeline')} />
+          <PostMenu post={p} onDeleted={() => router.push(p.channel ? `/channels/${p.channel.id}` : '/timeline')} />
         </div>
 
+        {p.channel && (
+          <p className="text-sm text-muted-foreground">
+            <Link href={`/channels/${p.channel.id}`} className="inline-flex items-center gap-0.5 text-primary hover:underline">
+              <Hash className="w-3.5 h-3.5" />
+              {p.channel.name}
+            </Link>
+          </p>
+        )}
         {p.replyToUsername && (
           <p className="text-sm text-muted-foreground">
             返信先: <Link href={`/${p.replyToUsername}`} className="text-primary hover:underline">@{p.replyToUsername}</Link>

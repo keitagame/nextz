@@ -47,7 +47,10 @@ export function PostActions({
       const r = await api<{ post: Post }>(`/api/posts/${post.id}/${kind}`, { method: on ? 'POST' : 'DELETE' });
       setPost(r.post);
       if (kind === 'bookmark') qc.invalidateQueries({ queryKey: ['bookmarks'] });
-      if (kind === 'repost') qc.invalidateQueries({ queryKey: ['feed'] });
+      if (kind === 'repost') {
+        qc.invalidateQueries({ queryKey: ['feed'] });
+        qc.invalidateQueries({ queryKey: ['channel-posts'] });
+      }
     } catch (e) {
       setPost((p) => ({
         ...p,

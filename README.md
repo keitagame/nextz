@@ -55,6 +55,8 @@ API: `GET/POST /api/channels`、`GET/DELETE /api/channels/:id`、`GET/POST/DELET
 `GET/POST /api/channels/:id/posts`、`DELETE /api/channels/:id/posts/:postId`、`GET /api/users/active`。
 テーブル（`channels` / `channel_members` / `channel_bans` / `channel_posts` と `users.last_seen_at` 列）は、既存の DB にも初回アクセス時に自動で追加されます。
 
+チャンネル内の投稿は `posts` テーブル（`channel_id` 列つき）に保存され、グローバルのポストと同じ仕組みで返信・リポスト・引用・いいね・リアクション・ブックマーク・通知が使えます。旧 `channel_posts` の既存データは初回アクセス時に自動で `posts` へ移行されます。
+
 ## 開発者（ボット API）
 
 **設定 → 開発者** から、ボット用のアカウントと API トークンを作成できます（1人5個まで）。

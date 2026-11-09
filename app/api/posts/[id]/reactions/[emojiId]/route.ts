@@ -1,15 +1,19 @@
 import { authed, intId, HttpError } from '@/lib/http';
 import { db } from '@/lib/db';
-import { getPost } from '@/lib/posts';
+import { assertChannelMember, getPost } from '@/lib/posts';
 import { notify, unnotify } from '@/lib/notify';
 import { rateLimit } from '@/lib/ratelimit';
 import { MAX_REACTIONS_PER_POST } from '@/lib/text';
 
 async function apply(on: boolean, postId: number, emojiId: number, userId: number) {
-  const target = await db.get<{ user_id: number }>('SELECT user_id FROM posts WHERE id = ? AND deleted_at IS NULL AND repost_of IS NULL', [postId]);
+  const target = await db.get<{ user_id: number; channel_id: number | null }>(
+    'SELECT user_id, channel_id FROM posts WHERE id = ? AND deleted_at IS NULL AND repost_of IS NULL',
+    [postId],
+  );
   if (!target) throw new HttpError(404, 'ポストが見つかりません');
 
   if (on) {
+    await assertChannelMember(target.channel_id, userId, 'リアクションするにはチャンネルに参加してください');
     await rateLimit(`react:${userId}`, 120, 10 * 60 * 1000);
     const emoji = await db.get<{ id: number }>('SELECT id FROM custom_emojis WHERE id = ?', [emojiId]);
     if (!emoji) throw new HttpError(404, '絵文字が見つかりません');

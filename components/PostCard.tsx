@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Link2, MoreHorizontal, Repeat2, Trash2 } from 'lucide-react';
+import { Hash, Link2, MoreHorizontal, Repeat2, Trash2, UserMinus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ImageGrid } from '@/components/ImageGrid';
 import { PostActions } from '@/components/PostActions';
@@ -12,6 +12,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { ReactionBar } from '@/components/ReactionBar';
 import { UserBadges } from '@/components/UserBadges';
 import { api, errorMessage } from '@/lib/api';
+import { useChannelAdmin } from '@/hooks/use-channel-admin';
 import { useRefreshContent, useViewer } from '@/hooks/use-queries';
 import { toast, toastError } from '@/lib/toast';
 import { formatFull, formatRelative } from '@/lib/time';
@@ -54,6 +55,9 @@ export function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => vo
   const me = useViewer();
   const refresh = useRefreshContent();
   const mine = me.username === post.author.username;
+  const admin = useChannelAdmin(post.channel?.id ?? '');
+  // チャンネル管理者は、自分以外・管理者以外の投稿者をそのポストからキックできる
+  const canKick = !!post.channel?.viewerIsOwner && !post.channel.byOwner && !mine;
 
   async function remove() {
     if (!confirm('このポストを削除しますか？この操作は取り消せません。')) return;
@@ -84,9 +88,14 @@ export function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => vo
         >
           <Link2 /> リンクをコピー
         </DropdownMenuItem>
-        {mine && (
+        {post.canDelete && (
           <DropdownMenuItem variant="destructive" onClick={remove}>
             <Trash2 /> ポストを削除
+          </DropdownMenuItem>
+        )}
+        {canKick && (
+          <DropdownMenuItem variant="destructive" onClick={() => admin.kick(post.author)}>
+            <UserMinus /> チャンネルからキック
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
@@ -98,12 +107,15 @@ export function PostCard({
   post,
   repostedBy,
   threadLine = false,
+  hideChannel = false,
   onDeleted,
 }: {
   post: Post;
   repostedBy?: User | null;
   /** スレッド表示で、このポストの下に返信が続くことを示す縦線 */
   threadLine?: boolean;
+  /** チャンネルのタイムライン内など、チャンネル名を表示する必要がないとき */
+  hideChannel?: boolean;
   onDeleted?: () => void;
 }) {
   const router = useRouter();
@@ -155,6 +167,7 @@ export function PostCard({
                 {p.author.name}
               </Link>
               <UserBadges user={p.author} />
+              {p.channel?.byOwner && <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">管理者</span>}
               <span className="text-muted-foreground truncate">@{p.author.username}</span>
               <span className="text-muted-foreground text-xs">·</span>
               <Link href={`/posts/${p.id}`} title={formatFull(p.createdAt)} className="text-muted-foreground text-xs hover:underline whitespace-nowrap">
@@ -163,6 +176,15 @@ export function PostCard({
             </div>
             <PostMenu post={p} onDeleted={onDeleted} />
           </div>
+
+          {p.channel && !hideChannel && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              <Link href={`/channels/${p.channel.id}`} className="inline-flex items-center gap-0.5 text-primary hover:underline">
+                <Hash className="w-3 h-3" />
+                {p.channel.name}
+              </Link>
+            </p>
+          )}
 
           {p.replyToUsername && (
             <p className="text-xs text-muted-foreground mt-0.5">

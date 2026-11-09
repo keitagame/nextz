@@ -70,6 +70,19 @@ export interface Post {
   reactions: Reaction[];
   quote: Post | null;
   deleted: boolean;
+  /** チャンネル内のポストならそのチャンネル。グローバルのポストは null */
+  channel: PostChannel | null;
+  /** 自分が削除できるか（投稿者本人、またはチャンネル内のポストならチャンネル管理者） */
+  canDelete: boolean;
+}
+
+export interface PostChannel {
+  id: string;
+  name: string;
+  /** 自分がこのチャンネルの管理者か */
+  viewerIsOwner: boolean;
+  /** 投稿者がチャンネル管理者か */
+  byOwner: boolean;
 }
 
 export interface FeedItem {
@@ -140,18 +153,6 @@ export interface Channel {
   isOwner: boolean;
   /** 管理者にキックされていて参加できないか */
   isBanned: boolean;
-}
-
-export interface ChannelPost {
-  id: string;
-  author: User;
-  content: string;
-  images: string[];
-  createdAt: string;
-  /** 投稿者本人、またはチャンネル管理者なら削除できる */
-  canDelete: boolean;
-  /** 投稿者がチャンネル管理者か */
-  byOwner: boolean;
 }
 
 export interface ChannelMember {

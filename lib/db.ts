@@ -230,6 +230,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_bots_token ON bots(token_hash);
 CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(owner_id);
 `;
 
+/**
+ * チャンネル内の投稿を、グローバルと同じ posts テーブルに統合するためのスキーマ。既存の DB にも適用できるよう冪等にしてある。
+ *   posts.channel_id  NULL = グローバルのポスト / 値あり = そのチャンネル内のポスト（返信・リポスト・引用も同じチャンネルに属する）
+ * 旧 channel_posts の行は posts に移してから空にする（移行は 1 回だけ。channel_posts テーブル自体は互換のため残す）。
+ * これにより、いいね・リポスト・引用・返信・リアクション・ブックマーク・通知がチャンネルでもそのまま使える。
+ */
+const CHANNEL_POST_SCHEMA = `
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS channel_id BIGINT REFERENCES channels(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_posts_channel ON posts(channel_id, id) WHERE channel_id IS NOT NULL;
+
+INSERT INTO posts (user_id, content, images, channel_id, created_at)
+  SELECT user_id, content, images, channel_id, created_at FROM channel_posts ORDER BY id;
+DELETE FROM channel_posts;
+`;
+
 export type Args = unknown[] | Record<string, unknown>;
 
 /**
@@ -315,12 +330,12 @@ async function init(): Promise<Pool> {
   }
 
   // スキーマ作成は初回のみ。複数インスタンスが同時に起動しても競合しないよう advisory lock をかける。
-  // 基本スキーマ（rate_limits を目印）・カスタム絵文字（post_reactions を目印）・チャンネル（channel_posts を目印）・ボット（bots を目印）を別々に判定する。
+  // 基本スキーマ（rate_limits を目印）・カスタム絵文字（post_reactions を目印）・チャンネル（channel_posts を目印）・ボット（bots を目印）・チャンネル投稿の統合（posts.channel_id を目印）を別々に判定する。
   // こうすると、すでに運用中の DB にも絵文字用のテーブル・列が自動で追加される。
   const { rows } = await pool.query(
-    "SELECT to_regclass('public.rate_limits') IS NOT NULL AS base, to_regclass('public.post_reactions') IS NOT NULL AS emoji, to_regclass('public.channel_posts') IS NOT NULL AS channel, to_regclass('public.bots') IS NOT NULL AS bot",
+    "SELECT to_regclass('public.rate_limits') IS NOT NULL AS base, to_regclass('public.post_reactions') IS NOT NULL AS emoji, to_regclass('public.channel_posts') IS NOT NULL AS channel, to_regclass('public.bots') IS NOT NULL AS bot, EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'posts' AND column_name = 'channel_id') AS chpost",
   );
-  if (!rows[0].base || !rows[0].emoji || !rows[0].channel || !rows[0].bot) {
+  if (!rows[0].base || !rows[0].emoji || !rows[0].channel || !rows[0].bot || !rows[0].chpost) {
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
@@ -329,6 +344,7 @@ async function init(): Promise<Pool> {
       await c.query(EMOJI_SCHEMA);
       await c.query(CHANNEL_SCHEMA);
       await c.query(BOT_SCHEMA);
+      await c.query(CHANNEL_POST_SCHEMA);
       await c.query('COMMIT');
     } catch (e) {
       await c.query('ROLLBACK').catch(() => {});

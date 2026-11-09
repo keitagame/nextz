@@ -60,7 +60,7 @@ export async function getProfile(username: string, viewerId: number): Promise<Pr
     `SELECT ${SUMMARY_COLS}, u.banner, u.location, u.website, u.created_at,
         (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers,
         (SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id) AS following,
-        (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id AND p.parent_id IS NULL AND p.deleted_at IS NULL) AS posts_count
+        (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id AND p.channel_id IS NULL AND p.parent_id IS NULL AND p.deleted_at IS NULL) AS posts_count
        FROM users u WHERE lower(u.username) = lower(@name)`,
     { viewer: viewerId, name: username },
   );
