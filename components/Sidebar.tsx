@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Bell, Bookmark, Hash, Home, LogOut, Mail, MoreHorizontal, Newspaper, PenSquare, Search, Settings, User } from 'lucide-react';
+import { Bell, Bookmark, Hash, Home, LogOut, Mail, MoreHorizontal, Newspaper, PenSquare, Search, Settings, ShieldAlert, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -97,6 +97,11 @@ export function Sidebar() {
             <DropdownMenuItem onClick={() => router.push('/settings')}>
               <Settings /> 設定
             </DropdownMenuItem>
+            {me.viewerIsAdmin && (
+              <DropdownMenuItem onClick={() => router.push('/admin')}>
+                <ShieldAlert /> 管理
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={logout}>
               <LogOut /> @{me.username} からログアウト
             </DropdownMenuItem>

@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from './db';
+import { isAdminUsername } from './admin';
 import type { Profile, User, UserSummary } from '@/types/post';
 
 export interface UserRow {
@@ -58,9 +59,20 @@ export const toSummary = (r: SummaryRow): UserSummary => ({
 
 export async function getProfile(username: string, viewerId: number): Promise<Profile | null> {
   const r = await db.get<
-    SummaryRow & { banner: string | null; location: string; website: string; created_at: number; followers: number; following: number; posts_count: number }
+    SummaryRow & {
+      banner: string | null;
+      location: string;
+      website: string;
+      created_at: number;
+      followers: number;
+      following: number;
+      posts_count: number;
+      banned_at: number | null;
+      viewer_username: string | null;
+    }
   >(
-    `SELECT ${SUMMARY_COLS}, u.banner, u.location, u.website, u.created_at,
+    `SELECT ${SUMMARY_COLS}, u.banner, u.location, u.website, u.created_at, u.banned_at,
+        (SELECT v.username FROM users v WHERE v.id = @viewer) AS viewer_username,
         (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers,
         (SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id) AS following,
         (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id AND p.channel_id IS NULL AND p.parent_id IS NULL AND p.deleted_at IS NULL) AS posts_count
@@ -78,6 +90,8 @@ export async function getProfile(username: string, viewerId: number): Promise<Pr
     followingCount: r.following,
     postsCount: r.posts_count,
     isMe: r.id === viewerId,
+    isBanned: r.banned_at !== null,
+    viewerIsAdmin: isAdminUsername(r.viewer_username),
   };
 }
 

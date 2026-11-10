@@ -56,7 +56,7 @@ export async function getViewer(): Promise<Viewer | null> {
   if (!token) return null;
   const row = await db.get<UserRow>(
     `SELECT ${USER_COLS} FROM sessions s JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = ? AND s.expires_at > ?`,
+     WHERE s.token_hash = ? AND s.expires_at > ? AND u.banned_at IS NULL`,
     [sha256(token), Date.now()],
   );
   if (!row) return null;
@@ -76,7 +76,10 @@ export async function getBotViewer(token: string): Promise<Viewer | null> {
   if (!token.startsWith(BOT_TOKEN_PREFIX) || token.length > 100) return null;
   const now = Date.now();
   const row = await db.get<UserRow>(
-    `SELECT ${USER_COLS} FROM bots b JOIN users u ON u.id = b.user_id WHERE b.token_hash = ?`,
+    // ボット自身、またはその所有者が凍結されているときはトークンを無効にする（解除すれば元に戻る）
+    `SELECT ${USER_COLS} FROM bots b JOIN users u ON u.id = b.user_id
+     WHERE b.token_hash = ? AND u.banned_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM users o WHERE o.id = b.owner_id AND o.banned_at IS NOT NULL)`,
     [sha256(token)],
   );
   if (!row) return null;

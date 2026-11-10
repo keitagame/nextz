@@ -59,6 +59,10 @@ export interface Profile extends UserSummary {
   followingCount: number;
   postsCount: number;
   isMe: boolean;
+  /** 管理者に凍結されているアカウントか */
+  isBanned: boolean;
+  /** 見ている自分が管理者か（ADMIN_USERNAMES で指定されたアカウント） */
+  viewerIsAdmin: boolean;
 }
 
 export interface Post {
@@ -187,4 +191,22 @@ export interface Bot {
   tokenPrefix: string;
   createdAt: string;
   lastUsedAt: string | null;
+}
+
+/** 管理画面：ユーザー一覧の 1 行 */
+export interface AdminUser {
+  id: string;
+  username: string;
+  name: string;
+  avatarUrl: string | null;
+  isBot: boolean;
+  /** 管理者アカウントか（管理者は凍結できない） */
+  isAdmin: boolean;
+  createdAt: string;
+  /** 同意した利用規約のバージョン（この機能より前に作られたアカウントは null） */
+  termsVersion: string | null;
+  bannedAt: string | null;
+  banReason: string;
+  /** 凍結した管理者のユーザー名 */
+  bannedBy: string | null;
 }

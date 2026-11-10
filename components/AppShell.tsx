@@ -14,7 +14,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   if (isPending) return <Spinner className="py-40 w-full" />;
-  if (!me) return <AuthScreen />;
+  if (!me) {
+    // 利用規約はログイン前（サインアップ前）でも読めるようにする
+    if (pathname === '/terms') return <main className="flex-1 max-w-[600px] border-x min-h-screen min-w-0">{children}</main>;
+    return <AuthScreen />;
+  }
 
   // DM 画面は広く使いたいので右サイドバーを出さない
   const wide = pathname.startsWith('/messages');

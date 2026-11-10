@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Monitor, Moon, Sun } from 'lucide-react';
@@ -107,6 +108,12 @@ export default function SettingsPage() {
         </section>
 
         <DeveloperSection />
+
+        <section className="p-4 space-y-3">
+          <h2 className="font-bold">利用規約</h2>
+          <p className="text-sm text-muted-foreground">規約に違反すると、管理者によってアカウントが凍結されることがあります。</p>
+          <Link href="/terms" className="inline-block text-sm text-primary font-bold hover:underline">利用規約を読む</Link>
+        </section>
 
         <section className="p-4 space-y-3">
           <h2 className="font-bold">アカウント</h2>

@@ -16,7 +16,7 @@ export const GET = authed(async ({ req, viewer }) => {
   const pat = `%${name.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const rows = await db.all(
     `SELECT ${SUMMARY_COLS} FROM users u
-     WHERE u.username ILIKE @pat ESCAPE '\\' OR u.display_name ILIKE @pat ESCAPE '\\'
+     WHERE (u.username ILIKE @pat ESCAPE '\\' OR u.display_name ILIKE @pat ESCAPE '\\') AND u.banned_at IS NULL
      ORDER BY (lower(u.username) = lower(@name)) DESC,
               (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) DESC, u.id DESC
      LIMIT @lim OFFSET @off`,

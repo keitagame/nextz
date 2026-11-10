@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Link as LinkIcon, Mail, MapPin, Settings, User } from 'lucide-react';
+import { Ban, Calendar, Link as LinkIcon, Mail, MapPin, Settings, User } from 'lucide-react';
+import { BanDialog, useUnban } from '@/components/BanDialog';
 import { EditProfileDialog } from '@/components/EditProfileDialog';
 import { FollowButton } from '@/components/FollowButton';
 import { InfiniteList } from '@/components/InfiniteList';
@@ -42,6 +43,8 @@ export function ProfileView() {
 function ProfileBody({ user }: { user: Profile }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabId>('posts');
+  const [banOpen, setBanOpen] = useState(false);
+  const unban = useUnban();
   const tabs = [
     { id: 'posts', label: 'ポスト' },
     { id: 'replies', label: '返信' },
@@ -103,6 +106,15 @@ function ProfileBody({ user }: { user: Profile }) {
                   <Mail className="w-4 h-4" />
                 </Button>
                 <FollowButton username={user.username} isFollowing={user.isFollowing} />
+                {/* 管理者だけに出る。管理者アカウントへの操作はサーバー側で拒否される */}
+                {user.viewerIsAdmin &&
+                  (user.isBanned ? (
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => unban(user.username)}>凍結を解除</Button>
+                  ) : (
+                    <Button variant="destructive" size="sm" className="rounded-full" onClick={() => setBanOpen(true)}>
+                      <Ban /> 凍結
+                    </Button>
+                  ))}
               </>
             )}
           </div>
@@ -119,6 +131,12 @@ function ProfileBody({ user }: { user: Profile }) {
               {user.followsYou && <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">フォローされています</span>}
             </p>
           </div>
+
+          {user.isBanned && (
+            <p role="status" className="rounded-md bg-destructive/10 text-destructive px-3 py-2 text-sm font-bold">
+              このアカウントは利用規約違反のため凍結されています
+            </p>
+          )}
 
           {user.bio && <p className="text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/90">{user.bio}</p>}
 
@@ -143,6 +161,8 @@ function ProfileBody({ user }: { user: Profile }) {
           </div>
         </div>
       </div>
+
+      <BanDialog target={banOpen ? { username: user.username, name: user.name } : null} onClose={() => setBanOpen(false)} />
 
       <Tabs tabs={tabs} value={tab} onChange={setTab} className="border-b border-border/60" />
 

@@ -1,5 +1,6 @@
 import 'server-only';
 import { NextRequest } from 'next/server';
+import { isAdminUsername } from './admin';
 import { getBotViewer, getViewer, type Viewer } from './auth';
 import { rateLimit } from './ratelimit';
 
@@ -84,6 +85,16 @@ function wrap<V>(needAuth: boolean, fn: (c: Ctx<V>) => Promise<unknown>, { human
 export const authed = (fn: (c: Ctx<Viewer>) => Promise<unknown>) => wrap<Viewer>(true, fn);
 /** ログイン必須 + 人間のアカウント専用（ボットのトークンでは呼べない。パスワード変更・ボット管理など） */
 export const humanOnly = (fn: (c: Ctx<Viewer>) => Promise<unknown>) => wrap<Viewer>(true, fn, { humanOnly: true });
+/** 管理者（ADMIN_USERNAMES で指定したアカウント）専用 + 人間のアカウント専用。管理者でなければ 403 */
+export const adminOnly = (fn: (c: Ctx<Viewer>) => Promise<unknown>) =>
+  wrap<Viewer>(
+    true,
+    async (c) => {
+      if (!isAdminUsername(c.viewer.username)) throw new HttpError(403, 'この操作は管理者のみ実行できます');
+      return fn(c);
+    },
+    { humanOnly: true },
+  );
 /** ログイン不要（viewer は null の可能性あり） */
 export const open = (fn: (c: Ctx<Viewer | null>) => Promise<unknown>) => wrap<Viewer | null>(false, fn);
 

@@ -275,6 +275,33 @@ CREATE TABLE IF NOT EXISTS avatar_decorations (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_decoration_id BIGINT REFERENCES avatar_decorations(id) ON DELETE SET NULL;
 `;
 
+/**
+ * 利用規約への同意とアカウント凍結（BAN）まわりのスキーマ。既存の DB にも適用できるよう、すべて冪等にしてある。
+ *   users.terms_version / terms_agreed_at  サインアップ時に同意した利用規約のバージョンと日時（この機能より前の既存ユーザーは NULL）
+ *   users.banned_at     NULL = 通常 / 値あり = 凍結中（凍結された日時）。凍結中はログイン・API・ボットのトークンがすべて無効になる
+ *   users.ban_reason    凍結理由（ログイン時に本人へ表示する）
+ *   users.banned_by     凍結した管理者（管理者のアカウントが消えたら NULL）
+ *   moderation_logs     凍結・解除の履歴（誰が・いつ・なぜ）。対象ユーザーが消えたら一緒に消える
+ */
+const MODERATION_SCHEMA = `
+ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_agreed_at BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_at BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_by BIGINT REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_users_banned ON users(banned_at) WHERE banned_at IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS moderation_logs (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  target_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  admin_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '',
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_moderation_target ON moderation_logs(target_id, id);
+`;
+
 export type Args = unknown[] | Record<string, unknown>;
 
 /**
@@ -360,12 +387,12 @@ async function init(): Promise<Pool> {
   }
 
   // スキーマ作成は初回のみ。複数インスタンスが同時に起動しても競合しないよう advisory lock をかける。
-  // 基本スキーマ（rate_limits を目印）・カスタム絵文字（post_reactions を目印）・チャンネル（channel_posts を目印）・ボット（bots を目印）・チャンネル投稿の統合（posts.channel_id を目印）・プロフィール装飾（avatar_decorations を目印）を別々に判定する。
+  // 基本スキーマ（rate_limits を目印）・カスタム絵文字（post_reactions を目印）・チャンネル（channel_posts を目印）・ボット（bots を目印）・チャンネル投稿の統合（posts.channel_id を目印）・プロフィール装飾（avatar_decorations を目印）・利用規約と凍結（users.banned_at を目印）を別々に判定する。
   // こうすると、すでに運用中の DB にも絵文字用のテーブル・列が自動で追加される。
   const { rows } = await pool.query(
-    "SELECT to_regclass('public.rate_limits') IS NOT NULL AS base, to_regclass('public.post_reactions') IS NOT NULL AS emoji, to_regclass('public.channel_posts') IS NOT NULL AS channel, to_regclass('public.bots') IS NOT NULL AS bot, EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'posts' AND column_name = 'channel_id') AS chpost, to_regclass('public.avatar_decorations') IS NOT NULL AS deco",
+    "SELECT to_regclass('public.rate_limits') IS NOT NULL AS base, to_regclass('public.post_reactions') IS NOT NULL AS emoji, to_regclass('public.channel_posts') IS NOT NULL AS channel, to_regclass('public.bots') IS NOT NULL AS bot, EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'posts' AND column_name = 'channel_id') AS chpost, to_regclass('public.avatar_decorations') IS NOT NULL AS deco, EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'banned_at') AS moderation",
   );
-  if (!rows[0].base || !rows[0].emoji || !rows[0].channel || !rows[0].bot || !rows[0].chpost || !rows[0].deco) {
+  if (!rows[0].base || !rows[0].emoji || !rows[0].channel || !rows[0].bot || !rows[0].chpost || !rows[0].deco || !rows[0].moderation) {
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
@@ -376,6 +403,7 @@ async function init(): Promise<Pool> {
       await c.query(BOT_SCHEMA);
       await c.query(CHANNEL_POST_SCHEMA);
       await c.query(PROFILE_DECO_SCHEMA);
+      await c.query(MODERATION_SCHEMA);
       await c.query('COMMIT');
     } catch (e) {
       await c.query('ROLLBACK').catch(() => {});

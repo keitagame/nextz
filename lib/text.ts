@@ -9,6 +9,8 @@ export const MAX_CHANNEL_DESC_LENGTH = 200;
 /** 1人が作成できるチャンネル数の上限 */
 export const MAX_CHANNELS_PER_USER = 10;
 export const MAX_IMAGES = 4;
+/** 管理者がアカウントを凍結するときの理由の最大文字数 */
+export const MAX_BAN_REASON_LENGTH = 500;
 /** カスタム絵文字：ショートコード（`:name:` の name）の形式と、1ポストにつき1人が付けられるリアクション数の上限 */
 export const SHORTCODE_RE = /^[A-Za-z0-9_]{2,32}$/;
 export const MAX_REACTIONS_PER_POST = 10;

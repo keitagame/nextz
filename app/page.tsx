@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Bookmark, Compass, Hash, Mail, Newspaper, Search, Settings, User, type LucideIcon } from 'lucide-react';
+import { Bell, Bookmark, Compass, Hash, Mail, Newspaper, Search, Settings, ShieldAlert, User, type LucideIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { PageHeader, Spinner } from '@/components/PageHeader';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -45,6 +45,7 @@ export default function HomePage() {
     { icon: User, label: 'プロフィール', description: '自分のページ', href: `/${me.username}` },
     { icon: Settings, label: '設定', description: 'アカウント・絵文字', href: '/settings' },
     { icon: Newspaper, label: '閲覧注意', description: '汚い可能性', href: '/timeline' },
+    ...(me.viewerIsAdmin ? [{ icon: ShieldAlert, label: '管理', description: '凍結（BAN）と解除', href: '/admin' }] : []),
   ];
 
   return (
