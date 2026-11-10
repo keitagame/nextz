@@ -1,6 +1,5 @@
 import 'server-only';
 import { db } from './db';
-import { isDecorationId } from './decorations';
 import type { Profile, User, UserSummary } from '@/types/post';
 
 export interface UserRow {
@@ -9,6 +8,7 @@ export interface UserRow {
   display_name: string;
   avatar: string | null;
   verified: number;
+  /** 選択中のフレーム画像の URL */
   avatar_decoration: string | null;
   /** user_badges を position 順に束ねた JSON（pg が配列にパースして返す） */
   badges: { id: number; shortcode: string; url: string }[] | null;
@@ -16,7 +16,8 @@ export interface UserRow {
 }
 
 /** u（users）に対するユーザー情報の共通列。バッジ（カスタム絵文字・最大 5 個）は表示順の JSON 配列としてサブクエリで引く */
-export const USER_COLS = `u.id, u.username, u.display_name, u.avatar, u.verified, u.avatar_decoration,
+export const USER_COLS = `u.id, u.username, u.display_name, u.avatar, u.verified,
+  (SELECT d.image FROM avatar_decorations d WHERE d.id = u.avatar_decoration_id) AS avatar_decoration,
   (SELECT jsonb_agg(jsonb_build_object('id', e.id, 'shortcode', e.shortcode, 'url', e.image) ORDER BY ub.position)
      FROM user_badges ub JOIN custom_emojis e ON e.id = ub.emoji_id WHERE ub.user_id = u.id) AS badges,
   EXISTS(SELECT 1 FROM bots bt WHERE bt.user_id = u.id) AS is_bot`;
@@ -28,7 +29,7 @@ export const toUser = (r: UserRow): User => ({
   avatarUrl: r.avatar,
   isVerified: !!r.verified,
   isBot: !!r.is_bot,
-  avatarDecoration: isDecorationId(r.avatar_decoration) ? r.avatar_decoration : null,
+  avatarDecoration: r.avatar_decoration,
   badges: (r.badges ?? []).map((b) => ({ id: String(b.id), shortcode: b.shortcode, url: b.url })),
 });
 

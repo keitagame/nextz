@@ -247,8 +247,9 @@ DELETE FROM channel_posts;
 
 /**
  * プロフィール装飾まわりのスキーマ。既存の DB にも適用できるよう、すべて冪等にしてある。
- *   user_badges             名前の横に並べるバッジ（カスタム絵文字）。1 人あたり最大 5 個、position が表示順
- *   users.avatar_decoration アイコンデコレーションの ID（lib/decorations.ts）。NULL = なし
+ *   user_badges         名前の横に並べるバッジ（カスタム絵文字）。1 人あたり最大 5 個、position が表示順
+ *   avatar_decorations  アイコンデコレーション（フレーム画像）の共有カタログ。誰でも登録でき、削除できるのは登録者のみ
+ *   users.avatar_decoration_id  選択中のデコレーション（NULL = なし。デコレーションが削除されたら自動で NULL に戻る）
  * 旧 users.badge_emoji_id（バッジ 1 個）は user_badges に移す。列自体は互換のため残す。
  */
 const PROFILE_DECO_SCHEMA = `
@@ -260,11 +261,18 @@ CREATE TABLE IF NOT EXISTS user_badges (
 );
 CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id, position);
 
-ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_decoration TEXT;
-
 INSERT INTO user_badges (user_id, emoji_id, position)
   SELECT id, badge_emoji_id, 0 FROM users WHERE badge_emoji_id IS NOT NULL
   ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS avatar_decorations (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name TEXT NOT NULL,
+  image TEXT NOT NULL,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at BIGINT NOT NULL
+);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_decoration_id BIGINT REFERENCES avatar_decorations(id) ON DELETE SET NULL;
 `;
 
 export type Args = unknown[] | Record<string, unknown>;
@@ -352,10 +360,10 @@ async function init(): Promise<Pool> {
   }
 
   // スキーマ作成は初回のみ。複数インスタンスが同時に起動しても競合しないよう advisory lock をかける。
-  // 基本スキーマ（rate_limits を目印）・カスタム絵文字（post_reactions を目印）・チャンネル（channel_posts を目印）・ボット（bots を目印）・チャンネル投稿の統合（posts.channel_id を目印）・プロフィール装飾（user_badges を目印）を別々に判定する。
+  // 基本スキーマ（rate_limits を目印）・カスタム絵文字（post_reactions を目印）・チャンネル（channel_posts を目印）・ボット（bots を目印）・チャンネル投稿の統合（posts.channel_id を目印）・プロフィール装飾（avatar_decorations を目印）を別々に判定する。
   // こうすると、すでに運用中の DB にも絵文字用のテーブル・列が自動で追加される。
   const { rows } = await pool.query(
-    "SELECT to_regclass('public.rate_limits') IS NOT NULL AS base, to_regclass('public.post_reactions') IS NOT NULL AS emoji, to_regclass('public.channel_posts') IS NOT NULL AS channel, to_regclass('public.bots') IS NOT NULL AS bot, EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'posts' AND column_name = 'channel_id') AS chpost, to_regclass('public.user_badges') IS NOT NULL AS deco",
+    "SELECT to_regclass('public.rate_limits') IS NOT NULL AS base, to_regclass('public.post_reactions') IS NOT NULL AS emoji, to_regclass('public.channel_posts') IS NOT NULL AS channel, to_regclass('public.bots') IS NOT NULL AS bot, EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'posts' AND column_name = 'channel_id') AS chpost, to_regclass('public.avatar_decorations') IS NOT NULL AS deco",
   );
   if (!rows[0].base || !rows[0].emoji || !rows[0].channel || !rows[0].bot || !rows[0].chpost || !rows[0].deco) {
     const c = await pool.connect();

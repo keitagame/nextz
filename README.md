@@ -33,10 +33,10 @@ DB は Postgres（Neon）、画像は Vercel Blob（ローカル開発時はデ�
 
 絵文字を削除すると、その絵文字のリアクション・通知・バッジも一緒に消えます。
 
-**アイコンデコレーション**: **設定 → アイコンデコレーション** で、アイコンの周りに付く装飾リング（8 種類・CSS のみで描画）を選べます。種類は `lib/decorations.ts` と `app/globals.css` の `[data-decoration]` に定義してあり、増やすときは両方に同じ id を足します。既存のバッジ（1 個）は初回アクセス時に `user_badges` へ自動で移行されます。
+**アイコンデコレーション**: アイコンに重ねる**フレーム画像**です。**設定 → アイコンデコレーション** で、登録済みのフレームから選ぶか、自分で追加できます（誰でも追加可・削除は登録者のみ。削除すると使っている人のアイコンからも外れます）。画像は正方形の透過 PNG / GIF / WebP（1MB 以下）で、アイコンの 1.2 倍の大きさ（`lib/decorations.ts` の `DECORATION_SCALE`）で中央に重ねて表示します。既存のバッジ（1 個）は初回アクセス時に `user_badges` へ自動で移行されます。
 
-API: `GET/POST /api/emojis`、`DELETE /api/emojis/:id`、`PUT/DELETE /api/posts/:id/reactions/:emojiId`、`PATCH /api/me`（`badgeEmojiIds`: 絵文字 ID の配列・最大 5 個・表示順 / `avatarDecoration`: デコレーション ID または `null`。旧形式の `badgeEmojiId` も可）。
-テーブル（`custom_emojis` / `post_reactions` / `user_badges` と、`users.avatar_decoration` / `notifications.emoji_id` 列）は、既存の DB にも初回アクセス時に自動で追加されます。
+API: `GET/POST /api/emojis`、`DELETE /api/emojis/:id`、`GET/POST /api/decorations`、`DELETE /api/decorations/:id`、`PUT/DELETE /api/posts/:id/reactions/:emojiId`、`PATCH /api/me`（`badgeEmojiIds`: 絵文字 ID の配列・最大 5 個・表示順 / `avatarDecorationId`: デコレーション ID または `null`。旧形式の `badgeEmojiId` も可）。
+テーブル（`custom_emojis` / `post_reactions` / `user_badges` / `avatar_decorations` と、`users.avatar_decoration_id` / `notifications.emoji_id` 列）は、既存の DB にも初回アクセス時に自動で追加されます。
 
 ## チャンネル
 

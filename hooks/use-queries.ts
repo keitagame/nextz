@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { Counters, CustomEmoji, Page, Profile } from '@/types/post';
+import type { AvatarDecoration, Counters, CustomEmoji, Page, Profile } from '@/types/post';
 
 export const useMe = () =>
   useQuery({
@@ -25,6 +25,17 @@ export function useEmojis() {
   return useQuery({
     queryKey: ['emojis'],
     queryFn: async () => (await api<{ items: CustomEmoji[] }>('/api/emojis')).items,
+    enabled: !!me,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** 登録済みアイコンデコレーションの一覧（設定画面用） */
+export function useDecorations() {
+  const { data: me } = useMe();
+  return useQuery({
+    queryKey: ['decorations'],
+    queryFn: async () => (await api<{ items: AvatarDecoration[] }>('/api/decorations')).items,
     enabled: !!me,
     staleTime: 5 * 60_000,
   });
@@ -68,6 +79,6 @@ export function useRefreshContent() {
   const qc = useQueryClient();
   return () =>
     qc.invalidateQueries({
-      predicate: (q) => !['me', 'counters', 'dm-threads', 'dm', 'emojis', 'active-users', 'channel-members'].includes(String(q.queryKey[0])),
+      predicate: (q) => !['me', 'counters', 'dm-threads', 'dm', 'emojis', 'decorations', 'active-users', 'channel-members'].includes(String(q.queryKey[0])),
     });
 }

@@ -28,10 +28,11 @@ export async function api<T>(url: string, init: Init = {}): Promise<T> {
   return data as T;
 }
 
-export async function uploadImage(file: File, opts: { emoji?: boolean } = {}): Promise<string> {
+export async function uploadImage(file: File, opts: { emoji?: boolean; decoration?: boolean } = {}): Promise<string> {
   const fd = new FormData();
   fd.append('file', file);
   if (opts.emoji) fd.append('kind', 'emoji');
+  else if (opts.decoration) fd.append('kind', 'decoration');
   const r = await api<{ url: string }>('/api/upload', { method: 'POST', body: fd });
   return r.url;
 }

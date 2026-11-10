@@ -1,6 +1,6 @@
 import { authed, open, readJson, str, intId, HttpError } from '@/lib/http';
 import { db, transaction } from '@/lib/db';
-import { isDecorationId, MAX_BADGES } from '@/lib/decorations';
+import { MAX_BADGES } from '@/lib/decorations';
 import { getProfile } from '@/lib/users';
 import { validateMediaUrl } from '@/lib/media';
 
@@ -37,10 +37,13 @@ export const PATCH = authed(async ({ req, viewer }) => {
   if ('avatarUrl' in body) set('avatar', body.avatarUrl === null ? null : validateMediaUrl(body.avatarUrl, 'アイコン画像'));
   if ('bannerUrl' in body) set('banner', body.bannerUrl === null ? null : validateMediaUrl(body.bannerUrl, 'ヘッダー画像'));
 
-  if ('avatarDecoration' in body) {
-    const d = body.avatarDecoration;
-    if (d !== null && !isDecorationId(d)) throw new HttpError(400, 'デコレーションが正しくありません');
-    set('avatar_decoration', d);
+  if ('avatarDecorationId' in body) {
+    if (body.avatarDecorationId === null) set('avatar_decoration_id', null);
+    else {
+      const id = intId(body.avatarDecorationId, 'デコレーションID');
+      if (!(await db.get('SELECT 1 AS ok FROM avatar_decorations WHERE id = ?', [id]))) throw new HttpError(404, 'デコレーションが見つかりません');
+      set('avatar_decoration_id', id);
+    }
   }
 
   // バッジ: badgeEmojiIds（配列・表示順・最大 MAX_BADGES 個）。旧形式の badgeEmojiId（1 個 / null）も受け付ける

@@ -14,6 +14,15 @@ export interface CustomEmoji extends EmojiRef {
   mine: boolean;
 }
 
+/** アイコンデコレーション（フレーム画像）の一覧用 */
+export interface AvatarDecoration {
+  id: string;
+  name: string;
+  url: string;
+  /** 自分が登録したか（削除できるのは登録者のみ） */
+  mine: boolean;
+}
+
 export interface Reaction extends EmojiRef {
   count: number;
   /** 自分がこの絵文字でリアクション済みか */
@@ -30,7 +39,7 @@ export interface User {
   isBot?: boolean;
   /** プロフィール名の横に表示するカスタム絵文字バッジ（表示順、最大 5 個） */
   badges?: EmojiRef[];
-  /** アイコンデコレーションの ID（lib/decorations.ts）。なければ null */
+  /** アイコンデコレーション（フレーム画像）の URL。なければ null */
   avatarDecoration?: string | null;
 }
 

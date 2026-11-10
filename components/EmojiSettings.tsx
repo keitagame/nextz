@@ -9,13 +9,13 @@ import { CustomEmojiImg } from '@/components/CustomEmoji';
 import { EmojiGrid } from '@/components/EmojiGrid';
 import { UserAvatar } from '@/components/UserAvatar';
 import { UserBadges } from '@/components/UserBadges';
-import { useEmojis, useRefreshContent, useViewer } from '@/hooks/use-queries';
+import { useDecorations, useEmojis, useRefreshContent, useViewer } from '@/hooks/use-queries';
 import { api, errorMessage, uploadImage } from '@/lib/api';
-import { DECORATIONS, MAX_BADGES } from '@/lib/decorations';
+import { DECORATION_SCALE, MAX_BADGES, MAX_DECORATION_BYTES } from '@/lib/decorations';
 import { SHORTCODE_RE } from '@/lib/text';
 import { toast, toastError } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-import type { CustomEmoji, Profile } from '@/types/post';
+import type { AvatarDecoration, CustomEmoji, Profile } from '@/types/post';
 
 const MAX_EMOJI_KB = 512;
 
@@ -91,61 +91,148 @@ export function BadgeSection() {
   );
 }
 
-/** アイコンの周りに付けるデコレーションを選ぶ */
+/** アイコンデコレーション（フレーム画像）を選ぶ・登録する・自分の登録分を削除する */
 export function DecorationSection() {
   const me = useViewer();
   const qc = useQueryClient();
+  const { data: items, isPending } = useDecorations();
+  const [name, setName] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const save = useMutation({
-    mutationFn: (id: string | null) => api<{ user: Profile }>('/api/me', { method: 'PATCH', json: { avatarDecoration: id } }),
+  const current = items?.find((d) => d.url === me.avatarDecoration) ?? null;
+
+  const select = useMutation({
+    mutationFn: (id: string | null) => api<{ user: Profile }>('/api/me', { method: 'PATCH', json: { avatarDecorationId: id } }),
     onSuccess: ({ user }) => {
       qc.setQueryData(['me'], user);
       qc.setQueryData(['profile', user.username], user);
-      qc.invalidateQueries({ predicate: (q) => !['me', 'profile', 'counters', 'emojis'].includes(String(q.queryKey[0])) });
+      qc.invalidateQueries({ predicate: (q) => !['me', 'profile', 'counters', 'emojis', 'decorations'].includes(String(q.queryKey[0])) });
       toast(user.avatarDecoration ? 'デコレーションを設定しました' : 'デコレーションを外しました');
     },
     onError: (e) => toastError(errorMessage(e)),
   });
 
-  const current = me.avatarDecoration ?? null;
+  function pickFile(f: File | undefined) {
+    if (!f) return;
+    if (!/^image\/(png|gif|webp)$/.test(f.type)) return toastError('透過に対応した PNG / GIF / WebP を選択してください');
+    if (f.size > MAX_DECORATION_BYTES) return toastError(`画像は${MAX_DECORATION_BYTES / 1024}KB以下にしてください`);
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = () => setPreview(typeof reader.result === 'string' ? reader.result : null);
+    reader.readAsDataURL(f);
+  }
+
+  const create = useMutation({
+    mutationFn: async () => {
+      const image = await uploadImage(file!, { decoration: true });
+      return api('/api/decorations', { method: 'POST', json: { name: name.trim(), image } });
+    },
+    onSuccess: () => {
+      toast('デコレーションを追加しました');
+      setName('');
+      setFile(null);
+      setPreview(null);
+      qc.invalidateQueries({ queryKey: ['decorations'] });
+    },
+    onError: (e) => toastError(errorMessage(e)),
+  });
+
+  async function remove(d: AvatarDecoration) {
+    if (!confirm(`「${d.name}」を削除しますか？\nこのデコレーションを使っている人のアイコンからも外れます。`)) return;
+    try {
+      await api(`/api/decorations/${d.id}`, { method: 'DELETE' });
+      toast('デコレーションを削除しました');
+      qc.invalidateQueries({ queryKey: ['decorations'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
+      qc.invalidateQueries({ predicate: (q) => !['me', 'counters', 'emojis', 'decorations'].includes(String(q.queryKey[0])) });
+    } catch (err) {
+      toastError(errorMessage(err));
+    }
+  }
 
   return (
-    <section className="p-4 space-y-3">
+    <section id="decorations" className="p-4 space-y-4 scroll-mt-16">
       <div>
         <h2 className="font-bold">アイコンデコレーション</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">アイコンの周りに装飾リングを付けられます。タイムライン・プロフィールなど、アイコンが表示されるすべての場所に反映されます。</p>
+        <p className="text-xs text-muted-foreground mt-0.5">アイコンにフレーム画像を重ねて表示します。誰でも追加でき、削除できるのは登録した本人だけです。</p>
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="p-2">
+        <div className="p-3">
           <UserAvatar user={me} className="size-16" />
         </div>
-        {current && (
-          <Button variant="outline" size="sm" className="rounded-full" disabled={save.isPending} onClick={() => save.mutate(null)}>
+        {me.avatarDecoration && (
+          <Button variant="outline" size="sm" className="rounded-full" disabled={select.isPending} onClick={() => select.mutate(null)}>
             デコレーションを外す
           </Button>
         )}
       </div>
 
-      <div className="grid grid-cols-4 gap-2 max-w-sm" role="radiogroup" aria-label="アイコンデコレーション">
-        {DECORATIONS.map((d) => (
+      {isPending ? (
+        <p className="text-sm text-muted-foreground">読み込み中...</p>
+      ) : !items || items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">まだ登録されていません。下のフォームから追加できます。</p>
+      ) : (
+        <ul className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-w-md" role="radiogroup" aria-label="アイコンデコレーション">
+          {items.map((d) => (
+            <li key={d.id} className="relative">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={current?.id === d.id}
+                disabled={select.isPending}
+                onClick={() => current?.id !== d.id && select.mutate(d.id)}
+                className={cn('w-full flex flex-col items-center gap-1 rounded-lg border p-2 text-[11px] hover:bg-accent transition-colors', current?.id === d.id && 'border-primary bg-primary/10 font-bold')}
+              >
+                <UserAvatar user={{ name: me.name, avatarUrl: me.avatarUrl, avatarDecoration: d.url }} className="size-12 my-1.5" />
+                <span className="w-full truncate text-center">{d.name}</span>
+              </button>
+              {d.mine && (
+                <button type="button" onClick={() => remove(d)} className="absolute top-0.5 right-0.5 p-1 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" aria-label={`「${d.name}」を削除`}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form
+        className="space-y-3 max-w-sm"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (file && name.trim()) create.mutate();
+        }}
+      >
+        <h3 className="text-sm font-bold">デコレーションを追加</h3>
+        <div className="flex items-center gap-3">
+          <input ref={fileRef} type="file" accept="image/png,image/gif,image/webp" hidden onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ''; }} />
           <button
-            key={d.id}
             type="button"
-            role="radio"
-            aria-checked={current === d.id}
-            disabled={save.isPending}
-            onClick={() => current !== d.id && save.mutate(d.id)}
-            className={cn('flex flex-col items-center gap-1.5 rounded-lg border p-2 text-[11px] hover:bg-accent transition-colors', current === d.id && 'border-primary bg-primary/10 font-bold')}
+            onClick={() => fileRef.current?.click()}
+            className="size-16 shrink-0 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors overflow-hidden bg-muted/40"
+            aria-label="フレーム画像を選択"
           >
-            <span
-              className="size-10 rounded-full"
-              style={{ background: d.preview, mask: 'radial-gradient(farthest-side, transparent 60%, #000 62%)', WebkitMask: 'radial-gradient(farthest-side, transparent 60%, #000 62%)' }}
-            />
-            {d.label}
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview} alt="" className="size-full object-contain" />
+            ) : (
+              <ImagePlus className="w-5 h-5" />
+            )}
           </button>
-        ))}
-      </div>
+          <div className="flex-1 min-w-0">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="名前（例: 桜のフレーム）" maxLength={30} aria-label="デコレーションの名前" className="h-10" />
+            <p className="text-[11px] mt-1 text-muted-foreground">
+              正方形の透過画像（PNG・GIF・WebP、{MAX_DECORATION_BYTES / 1024}KB以下）。中央をアイコンの大きさでくり抜き、アイコンが画像の中央約{Math.round(100 / DECORATION_SCALE)}%に収まるように作ってください。
+            </p>
+          </div>
+        </div>
+        <Button type="submit" disabled={!file || !name.trim() || create.isPending} className="rounded-full font-bold px-5">
+          {create.isPending ? '追加中...' : 'デコレーションを追加'}
+        </Button>
+      </form>
     </section>
   );
 }
