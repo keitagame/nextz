@@ -7,7 +7,7 @@ import { Monitor, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DeveloperSection } from '@/components/DeveloperSettings';
-import { BadgeSection, EmojiManager } from '@/components/EmojiSettings';
+import { BadgeSection, DecorationSection, EmojiManager } from '@/components/EmojiSettings';
 import { PageHeader } from '@/components/PageHeader';
 import { useViewer } from '@/hooks/use-queries';
 import { api, errorMessage } from '@/lib/api';
@@ -87,6 +87,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        <DecorationSection />
         <BadgeSection />
         <EmojiManager />
 

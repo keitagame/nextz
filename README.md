@@ -29,12 +29,14 @@ DB は Postgres（Neon）、画像は Vercel Blob（ローカル開発時はデ�
 | --- | --- |
 | **ポスト本文で使う** | `:ショートコード:` と書く、または投稿フォームの 😊 ボタン →「カスタム絵文字」から選ぶ。未登録・削除済みのコードは文字のまま表示されます |
 | **ポストにリアクション** | ポストの 😊+ ボタンから選ぶ。ポスト下のチップをクリックで付け外し。1人が1ポストに付けられるのは10種類まで。ポスト主に通知が届きます |
-| **バッジにする** | **設定 → バッジ** で選ぶと、タイムライン・ポスト詳細・プロフィール・ユーザー一覧の名前の横に表示されます |
+| **バッジにする** | **設定 → バッジ** で最大 5 個まで選ぶと、タイムライン・ポスト詳細・プロフィール・ユーザー一覧の名前の横に、選んだ順に表示されます |
 
 絵文字を削除すると、その絵文字のリアクション・通知・バッジも一緒に消えます。
 
-API: `GET/POST /api/emojis`、`DELETE /api/emojis/:id`、`PUT/DELETE /api/posts/:id/reactions/:emojiId`、`PATCH /api/me`（`badgeEmojiId`）。
-テーブル（`custom_emojis` / `post_reactions` と、`users.badge_emoji_id` / `notifications.emoji_id` 列）は、既存の DB にも初回アクセス時に自動で追加されます。
+**アイコンデコレーション**: **設定 → アイコンデコレーション** で、アイコンの周りに付く装飾リング（8 種類・CSS のみで描画）を選べます。種類は `lib/decorations.ts` と `app/globals.css` の `[data-decoration]` に定義してあり、増やすときは両方に同じ id を足します。既存のバッジ（1 個）は初回アクセス時に `user_badges` へ自動で移行されます。
+
+API: `GET/POST /api/emojis`、`DELETE /api/emojis/:id`、`PUT/DELETE /api/posts/:id/reactions/:emojiId`、`PATCH /api/me`（`badgeEmojiIds`: 絵文字 ID の配列・最大 5 個・表示順 / `avatarDecoration`: デコレーション ID または `null`。旧形式の `badgeEmojiId` も可）。
+テーブル（`custom_emojis` / `post_reactions` / `user_badges` と、`users.avatar_decoration` / `notifications.emoji_id` 列）は、既存の DB にも初回アクセス時に自動で追加されます。
 
 ## チャンネル
 

@@ -2,42 +2,56 @@
 
 import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus, Trash2 } from 'lucide-react';
+import { ImagePlus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CustomEmojiImg } from '@/components/CustomEmoji';
 import { EmojiGrid } from '@/components/EmojiGrid';
+import { UserAvatar } from '@/components/UserAvatar';
 import { UserBadges } from '@/components/UserBadges';
 import { useEmojis, useRefreshContent, useViewer } from '@/hooks/use-queries';
 import { api, errorMessage, uploadImage } from '@/lib/api';
+import { DECORATIONS, MAX_BADGES } from '@/lib/decorations';
 import { SHORTCODE_RE } from '@/lib/text';
 import { toast, toastError } from '@/lib/toast';
+import { cn } from '@/lib/utils';
 import type { CustomEmoji, Profile } from '@/types/post';
 
 const MAX_EMOJI_KB = 512;
 
-/** プロフィール名の横に表示するバッジ（カスタム絵文字）を選ぶ */
+/** プロフィール名の横に表示するバッジ（カスタム絵文字・最大 MAX_BADGES 個）を選ぶ */
 export function BadgeSection() {
   const me = useViewer();
   const qc = useQueryClient();
+  const badges = me.badges ?? [];
+  const ids = badges.map((b) => b.id);
 
-  const setBadge = useMutation({
-    mutationFn: (emojiId: string | null) => api<{ user: Profile }>('/api/me', { method: 'PATCH', json: { badgeEmojiId: emojiId } }),
+  const save = useMutation({
+    mutationFn: (emojiIds: string[]) => api<{ user: Profile }>('/api/me', { method: 'PATCH', json: { badgeEmojiIds: emojiIds } }),
     onSuccess: ({ user }) => {
       qc.setQueryData(['me'], user);
       qc.setQueryData(['profile', user.username], user);
       // 表示済みのポスト・一覧のバッジも更新する
       qc.invalidateQueries({ predicate: (q) => !['me', 'profile', 'counters', 'emojis'].includes(String(q.queryKey[0])) });
-      toast(user.badge ? 'バッジを設定しました' : 'バッジを外しました');
     },
     onError: (e) => toastError(errorMessage(e)),
   });
 
+  /** 選択済みなら外し、未選択なら末尾に追加する（上限あり） */
+  function toggle(emoji: CustomEmoji) {
+    if (save.isPending) return;
+    if (ids.includes(emoji.id)) return save.mutate(ids.filter((id) => id !== emoji.id));
+    if (ids.length >= MAX_BADGES) return toastError(`バッジは${MAX_BADGES}個まで設定できます。外してから選んでください`);
+    save.mutate([...ids, emoji.id]);
+  }
+
   return (
     <section className="p-4 space-y-3">
       <div>
-        <h2 className="font-bold">バッジ</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">好きなカスタム絵文字を、名前の横に表示できます。</p>
+        <h2 className="font-bold">
+          バッジ <span className="text-xs font-normal text-muted-foreground">{badges.length}/{MAX_BADGES}</span>
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">好きなカスタム絵文字を、名前の横に最大{MAX_BADGES}個まで表示できます。選んだ順に並びます。</p>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -45,18 +59,93 @@ export function BadgeSection() {
           <span className="font-bold truncate max-w-48">{me.name}</span>
           <UserBadges user={me} />
         </span>
-        {me.badge && (
-          <Button variant="outline" size="sm" className="rounded-full" disabled={setBadge.isPending} onClick={() => setBadge.mutate(null)}>
-            バッジを外す
+        {badges.length > 0 && (
+          <Button variant="outline" size="sm" className="rounded-full" disabled={save.isPending} onClick={() => save.mutate([])}>
+            すべて外す
           </Button>
         )}
       </div>
 
-      <EmojiGrid
-        className="max-w-sm"
-        selectedIds={me.badge ? [me.badge.id] : []}
-        onPick={(e) => !setBadge.isPending && setBadge.mutate(e.id)}
-      />
+      {badges.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label="設定中のバッジ">
+          {badges.map((b) => (
+            <li key={b.id}>
+              <button
+                type="button"
+                disabled={save.isPending}
+                onClick={() => save.mutate(ids.filter((id) => id !== b.id))}
+                className="group flex items-center gap-1 rounded-full border pl-2 pr-1.5 py-1 text-xs hover:border-destructive/50 hover:bg-destructive/10 transition-colors"
+                aria-label={`:${b.shortcode}: を外す`}
+              >
+                <CustomEmojiImg emoji={b} className="size-5 mx-0 align-middle" />
+                <code>:{b.shortcode}:</code>
+                <X className="w-3 h-3 text-muted-foreground group-hover:text-destructive" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <EmojiGrid className="max-w-sm" selectedIds={ids} onPick={toggle} />
+    </section>
+  );
+}
+
+/** アイコンの周りに付けるデコレーションを選ぶ */
+export function DecorationSection() {
+  const me = useViewer();
+  const qc = useQueryClient();
+
+  const save = useMutation({
+    mutationFn: (id: string | null) => api<{ user: Profile }>('/api/me', { method: 'PATCH', json: { avatarDecoration: id } }),
+    onSuccess: ({ user }) => {
+      qc.setQueryData(['me'], user);
+      qc.setQueryData(['profile', user.username], user);
+      qc.invalidateQueries({ predicate: (q) => !['me', 'profile', 'counters', 'emojis'].includes(String(q.queryKey[0])) });
+      toast(user.avatarDecoration ? 'デコレーションを設定しました' : 'デコレーションを外しました');
+    },
+    onError: (e) => toastError(errorMessage(e)),
+  });
+
+  const current = me.avatarDecoration ?? null;
+
+  return (
+    <section className="p-4 space-y-3">
+      <div>
+        <h2 className="font-bold">アイコンデコレーション</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">アイコンの周りに装飾リングを付けられます。タイムライン・プロフィールなど、アイコンが表示されるすべての場所に反映されます。</p>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="p-2">
+          <UserAvatar user={me} className="size-16" />
+        </div>
+        {current && (
+          <Button variant="outline" size="sm" className="rounded-full" disabled={save.isPending} onClick={() => save.mutate(null)}>
+            デコレーションを外す
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-4 gap-2 max-w-sm" role="radiogroup" aria-label="アイコンデコレーション">
+        {DECORATIONS.map((d) => (
+          <button
+            key={d.id}
+            type="button"
+            role="radio"
+            aria-checked={current === d.id}
+            disabled={save.isPending}
+            onClick={() => current !== d.id && save.mutate(d.id)}
+            className={cn('flex flex-col items-center gap-1.5 rounded-lg border p-2 text-[11px] hover:bg-accent transition-colors', current === d.id && 'border-primary bg-primary/10 font-bold')}
+          >
+            <span
+              className="size-10 rounded-full"
+              style={{ background: d.preview, mask: 'radial-gradient(farthest-side, transparent 60%, #000 62%)', WebkitMask: 'radial-gradient(farthest-side, transparent 60%, #000 62%)' }}
+            />
+            {d.label}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

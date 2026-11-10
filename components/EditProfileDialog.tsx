@@ -88,7 +88,7 @@ export function EditProfileDialog({ user }: { user: Profile }) {
             </div>
 
             <div className="relative w-fit -mt-12 ml-3">
-              <UserAvatar user={{ name, avatarUrl }} className="size-20 border-4 border-popover" />
+              <UserAvatar user={{ name, avatarUrl, avatarDecoration: user.avatarDecoration }} className="size-20 border-4 border-popover" />
               <input ref={avatarRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" hidden onChange={(e) => { pick(e.target.files?.[0], setAvatarUrl); e.target.value = ''; }} />
               <button type="button" onClick={() => avatarRef.current?.click()} className="absolute inset-1 rounded-full flex items-center justify-center bg-black/30 text-white hover:bg-black/40" aria-label="アイコンを変更">
                 <Camera className="w-5 h-5" />

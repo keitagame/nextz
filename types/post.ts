@@ -28,8 +28,10 @@ export interface User {
   isVerified?: boolean;
   /** ボットアカウントか */
   isBot?: boolean;
-  /** プロフィール名の横に表示するカスタム絵文字バッジ */
-  badge?: EmojiRef | null;
+  /** プロフィール名の横に表示するカスタム絵文字バッジ（表示順、最大 5 個） */
+  badges?: EmojiRef[];
+  /** アイコンデコレーションの ID（lib/decorations.ts）。なければ null */
+  avatarDecoration?: string | null;
 }
 
 /** 一覧表示用（フォロー候補・検索結果・フォロー一覧など） */

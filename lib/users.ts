@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from './db';
+import { isDecorationId } from './decorations';
 import type { Profile, User, UserSummary } from '@/types/post';
 
 export interface UserRow {
@@ -8,16 +9,16 @@ export interface UserRow {
   display_name: string;
   avatar: string | null;
   verified: number;
-  badge_id: number | null;
-  badge_code: string | null;
-  badge_url: string | null;
+  avatar_decoration: string | null;
+  /** user_badges を position 順に束ねた JSON（pg が配列にパースして返す） */
+  badges: { id: number; shortcode: string; url: string }[] | null;
   is_bot?: boolean;
 }
 
-/** u（users）に対するユーザー情報の共通列。バッジ（カスタム絵文字）はサブクエリで引く */
-export const USER_COLS = `u.id, u.username, u.display_name, u.avatar, u.verified, u.badge_emoji_id AS badge_id,
-  (SELECT e.shortcode FROM custom_emojis e WHERE e.id = u.badge_emoji_id) AS badge_code,
-  (SELECT e.image FROM custom_emojis e WHERE e.id = u.badge_emoji_id) AS badge_url,
+/** u（users）に対するユーザー情報の共通列。バッジ（カスタム絵文字・最大 5 個）は表示順の JSON 配列としてサブクエリで引く */
+export const USER_COLS = `u.id, u.username, u.display_name, u.avatar, u.verified, u.avatar_decoration,
+  (SELECT jsonb_agg(jsonb_build_object('id', e.id, 'shortcode', e.shortcode, 'url', e.image) ORDER BY ub.position)
+     FROM user_badges ub JOIN custom_emojis e ON e.id = ub.emoji_id WHERE ub.user_id = u.id) AS badges,
   EXISTS(SELECT 1 FROM bots bt WHERE bt.user_id = u.id) AS is_bot`;
 
 export const toUser = (r: UserRow): User => ({
@@ -27,7 +28,8 @@ export const toUser = (r: UserRow): User => ({
   avatarUrl: r.avatar,
   isVerified: !!r.verified,
   isBot: !!r.is_bot,
-  badge: r.badge_id && r.badge_code && r.badge_url ? { id: String(r.badge_id), shortcode: r.badge_code, url: r.badge_url } : null,
+  avatarDecoration: isDecorationId(r.avatar_decoration) ? r.avatar_decoration : null,
+  badges: (r.badges ?? []).map((b) => ({ id: String(b.id), shortcode: b.shortcode, url: b.url })),
 });
 
 export async function getUserById(id: number): Promise<User | null> {

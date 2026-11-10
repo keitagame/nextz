@@ -3,8 +3,8 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types/post';
 
-/** 名前の横に並べるバッジ（認証マーク + ユーザーが選んだカスタム絵文字バッジ） */
-export function UserBadges({ user, className }: { user: Pick<User, 'isVerified' | 'badge' | 'isBot'>; className?: string }) {
+/** 名前の横に並べるバッジ（認証マーク + BOT + ユーザーが選んだカスタム絵文字バッジ最大 5 個） */
+export function UserBadges({ user, className }: { user: Pick<User, 'isVerified' | 'badges' | 'isBot'>; className?: string }) {
   return (
     <>
       {user.isVerified && <VerifiedBadge />}
@@ -13,7 +13,9 @@ export function UserBadges({ user, className }: { user: Pick<User, 'isVerified' 
           BOT
         </span>
       )}
-      {user.badge && <CustomEmojiImg emoji={user.badge} className={cn('size-4 shrink-0 object-contain align-middle mx-0', className)} />}
+      {user.badges?.map((b) => (
+        <CustomEmojiImg key={b.id} emoji={b} className={cn('size-4 shrink-0 object-contain align-middle mx-0', className)} />
+      ))}
     </>
   );
 }
