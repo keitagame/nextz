@@ -1,0 +1,192 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* X 風ライト：白地 + 青 */
+  --background: #ffffff;
+  --foreground: #0f1419;
+  --card: #ffffff;
+  --card-foreground: #0f1419;
+  --popover: #ffffff;
+  --popover-foreground: #0f1419;
+  --primary: #1d9bf0;
+  --primary-foreground: #ffffff;
+  --secondary: #eff3f4;
+  --secondary-foreground: #0f1419;
+  --muted: #f7f9f9;
+  --muted-foreground: #536471;
+  --accent: #e7e7e8;
+  --accent-foreground: #0f1419;
+  --destructive: #f4212e;
+  --border: #eff3f4;
+  --input: #cfd9de;
+  --ring: #1d9bf0;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 1rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f1419;
+  --sidebar-primary: #1d9bf0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e7e7e8;
+  --sidebar-accent-foreground: #0f1419;
+  --sidebar-border: #eff3f4;
+  --sidebar-ring: #1d9bf0;
+}
+
+.dark {
+  /* X 風ダーク：純黒 + 青 */
+  --background: #000000;
+  --foreground: #e7e9ea;
+  --card: #000000;
+  --card-foreground: #e7e9ea;
+  --popover: #000000;
+  --popover-foreground: #e7e9ea;
+  --primary: #1d9bf0;
+  --primary-foreground: #ffffff;
+  --secondary: #16181c;
+  --secondary-foreground: #e7e9ea;
+  --muted: #16181c;
+  --muted-foreground: #71767b;
+  --accent: #1d1f23;
+  --accent-foreground: #e7e9ea;
+  --destructive: #f4212e;
+  --border: #2f3336;
+  --input: #333639;
+  --ring: #1d9bf0;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: #000000;
+  --sidebar-foreground: #e7e9ea;
+  --sidebar-primary: #1d9bf0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1d1f23;
+  --sidebar-accent-foreground: #e7e9ea;
+  --sidebar-border: #2f3336;
+  --sidebar-ring: #1d9bf0;
+}
+
+/* ユーザーが設定した背景画像（強くぼかして表示）。画像は <html> の --app-bg-image に入る（lib/background.ts）。
+   黒・灰色・白の面（背景/カード/サイドバー/各種グレー）はすべて同じ不透明度 --ui-a にそろえて透かす */
+html.has-bg {
+  --ui-a: 0.6;
+  background-color: #ffffff;
+  --background: rgb(255 255 255 / var(--ui-a));
+  --card: rgb(255 255 255 / var(--ui-a));
+  --popover: rgb(255 255 255 / var(--ui-a));
+  --sidebar: rgb(255 255 255 / var(--ui-a));
+  --secondary: rgb(239 243 244 / var(--ui-a));
+  --muted: rgb(247 249 249 / var(--ui-a));
+  --accent: rgb(231 231 232 / var(--ui-a));
+  --sidebar-accent: rgb(231 231 232 / var(--ui-a));
+}
+html.has-bg.dark {
+  background-color: #000000;
+  --background: rgb(0 0 0 / var(--ui-a));
+  --card: rgb(0 0 0 / var(--ui-a));
+  --popover: rgb(0 0 0 / var(--ui-a));
+  --sidebar: rgb(0 0 0 / var(--ui-a));
+  --secondary: rgb(22 24 28 / var(--ui-a));
+  --muted: rgb(22 24 28 / var(--ui-a));
+  --accent: rgb(29 31 35 / var(--ui-a));
+  --sidebar-accent: rgb(29 31 35 / var(--ui-a));
+}
+html.has-bg body {
+  background: transparent;
+}
+html.has-bg body::before {
+  content: "";
+  position: fixed;
+  /* ぼかしで端が透けないよう、画面より大きく広げる */
+  inset: -80px;
+  z-index: -1;
+  background-image: var(--app-bg-image);
+  background-size: cover;
+  background-position: center;
+  filter: blur(32px);
+  pointer-events: none;
+}
+/* 左右サイドバーと中央カラムも同じ透け具合の面にする */
+html.has-bg aside,
+html.has-bg main {
+  background: var(--background);
+}
+/* ヘッダー・下部ナビなど、元から /80 /90 で透かしていた面も同じ不透明度にそろえる */
+html.has-bg .bg-background\/80,
+html.has-bg .bg-background\/90 {
+  background-color: var(--background);
+}
+/* 固定表示の検索欄は面を重ねない */
+html.has-bg .sticky-bg {
+  background: transparent;
+}
+/* 下の文字が透けて読みにくくならないよう、ポップアップ類は背景をぼかす */
+html.has-bg .bg-popover,
+html.has-bg .bg-background.shadow-2xl {
+  backdrop-filter: blur(16px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
