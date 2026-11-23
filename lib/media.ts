@@ -2,7 +2,6 @@ import 'server-only';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { put } from '@vercel/blob';
 import { UPLOAD_DIR } from './db';
 import { HttpError } from './http';
 
@@ -21,8 +20,14 @@ export const MIME: Record<string, string> = {
   webp: 'image/webp',
 };
 
-/** BLOB_READ_WRITE_TOKEN があれば Vercel Blob、なければローカルディスク（開発用）に保存する */
-const useBlob = () => !!process.env.BLOB_READ_WRITE_TOKEN;
+/**
+ * IMG_UPLOAD_URL（img.cgi の URL）と IMG_UPLOAD_KEY（共有の合言葉）、IMG_PUBLIC_BASE（画像の公開URLの先頭。例: https://xs038402.xsrv.jp/uploads）を
+ * 設定すると、画像を Xserver に保存する。未設定ならローカルディスク（開発用）に保存する。
+ */
+const UP_URL = () => process.env.IMG_UPLOAD_URL ?? '';
+const UP_KEY = () => process.env.IMG_UPLOAD_KEY ?? '';
+const PUBLIC_BASE = () => (process.env.IMG_PUBLIC_BASE ?? '').replace(/\/+$/, '');
+const useRemote = () => !!(UP_URL() && UP_KEY() && PUBLIC_BASE());
 
 /** マジックナンバーで画像形式を判定（拡張子や Content-Type は信用しない。SVG は XSS 防止のため不許可） */
 export function sniffImage(buf: Buffer): 'jpg' | 'png' | 'gif' | 'webp' | null {
@@ -41,21 +46,19 @@ export function mediaPath(name: string) {
 /** 画像を保存して、投稿やプロフィールに保存する URL を返す */
 export async function saveImage(buf: Buffer, ext: 'jpg' | 'png' | 'gif' | 'webp'): Promise<string> {
   const name = `${crypto.randomBytes(16).toString('hex')}.${ext}`;
-  if (useBlob()) {
-    const blob = await put(`uploads/${name}`, buf, {
-      access: 'public',
-      contentType: MIME[ext],
-      addRandomSuffix: false,
-      cacheControlMaxAge: 60 * 60 * 24 * 365,
-    });
-    return blob.url;
+  if (useRemote()) {
+    const res = await fetch(UP_URL(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ key: UP_KEY(), name, data: buf.toString('base64') }),
+    }).catch(() => null);
+    if (!res || !res.ok) throw new HttpError(502, '画像の保存に失敗しました');
+    return `${PUBLIC_BASE()}/${name}`;
   }
   await fs.promises.mkdir(UPLOAD_DIR, { recursive: true });
   await fs.promises.writeFile(mediaPath(name), buf);
   return `/api/media/${name}`;
 }
-
-const BLOB_URL_RE = /^\/uploads\/[a-f0-9]{32}\.(?:jpg|png|gif|webp)$/;
 
 /** 自サービスがアップロードした画像の URL か検証して返す */
 export function validateMediaUrl(url: unknown, label = '画像'): string {
@@ -65,20 +68,14 @@ export function validateMediaUrl(url: unknown, label = '画像'): string {
   // ローカル保存（開発用）
   const m = /^\/api\/media\/([a-f0-9]{32}\.(?:jpg|png|gif|webp))$/.exec(url);
   if (m) {
-    if (useBlob() || !fs.existsSync(mediaPath(m[1]))) throw bad();
+    if (useRemote() || !fs.existsSync(mediaPath(m[1]))) throw bad();
     return url;
   }
 
-  // Vercel Blob（公開ストアのドメイン + uploads/ 配下のランダム名のみ許可）
-  if (useBlob()) {
-    try {
-      const u = new URL(url);
-      if (u.protocol === 'https:' && u.hostname.endsWith('.public.blob.vercel-storage.com') && BLOB_URL_RE.test(u.pathname) && !u.search && !u.hash) {
-        return url;
-      }
-    } catch {
-      /* fallthrough */
-    }
+  // Xserver（IMG_PUBLIC_BASE 配下のランダム名のみ許可）
+  if (useRemote()) {
+    const prefix = `${PUBLIC_BASE()}/`;
+    if (url.startsWith(prefix) && MEDIA_NAME_RE.test(url.slice(prefix.length))) return url;
   }
   throw bad();
 }
